@@ -1,5 +1,12 @@
 # 🧬 post-gwas-alzheimer
 
+![R](https://img.shields.io/badge/R-4.2+-276DC3?style=flat&logo=r&logoColor=white)
+![Bioconductor](https://img.shields.io/badge/Bioconductor-3.16+-87B13F?style=flat)
+![License](https://img.shields.io/badge/license-MIT-green?style=flat)
+![Status](https://img.shields.io/badge/status-active-brightgreen?style=flat)
+![Disease](https://img.shields.io/badge/disease-Alzheimer's-blueviolet?style=flat)
+![Methods](https://img.shields.io/badge/methods-GWAS%20%7C%20eQTL%20%7C%20Colocalization-orange?style=flat)
+
 A robust, modular Post-GWAS analysis pipeline focused on **Alzheimer's Disease (AD)**, designed to move from GWAS-significant SNPs to biologically interpretable gene sets and pathways.
 
 ---
@@ -25,7 +32,8 @@ post-gwas-alzheimer/
 ├── README.md                        # This file
 ├── Post_GWAS_Analysis_new.R              # Script 1: Hybrid (gene-based, with fallback)
 ├── Post_GWAS_Analysis_bigdata.R          # Script 2: Big Data (full study download)
-├── Post_GWAS_Colocalization_HyPrColoc.R  # Script 3: Multi-trait colocalization
+├── Post_GWAS_Colocalization_HyPrColoc.R  # Script 3: Standalone colocalization
+├── Post_GWAS_SummaryStats_Pipeline.R     # Script 4: Real summary stats (full pipeline): Multi-trait colocalization
 │
 ├── methods/                         # Per-tool methodology documentation
 │   ├── METHODS_GWAS_Catalog.md
