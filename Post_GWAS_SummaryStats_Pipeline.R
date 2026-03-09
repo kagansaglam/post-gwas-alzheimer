@@ -18,11 +18,7 @@ bioc_pkgs <- c("clusterProfiler", "org.Hs.eg.db", "enrichplot",
 new_bioc <- bioc_pkgs[!(bioc_pkgs %in% installed.packages()[,"Package"])]
 if(length(new_bioc)) BiocManager::install(new_bioc, update = FALSE)
 
-if (!require("hyprcoloc", quietly = TRUE)) {
-  if (!require("remotes", quietly = TRUE)) install.packages("remotes")
-  remotes::install_github("jrs95/hyprcoloc", build_vignettes = FALSE)
-}
-
+if (!require("coloc", quietly = TRUE)) install.packages("coloc")
 suppressPackageStartupMessages({
   library(data.table)
   library(tidyverse)
@@ -36,7 +32,7 @@ suppressPackageStartupMessages({
   library(DOSE)
   library(enrichplot)
   library(AnnotationDbi)
-  library(hyprcoloc)
+  library(coloc)
   library(Qtlizer)
 })
 
@@ -97,8 +93,6 @@ load_sumstats <- function(path, study_name, pval_col = "p_value",
   message("    Genome-wide significant (P <= 5e-8): ",
           format(sum(dt$P <= pval_threshold), big.mark = ","))
   return(dt)
-}
-
 # Load both studies
 bell <- load_sumstats(path_bellenguez, "Bellenguez2022")
 kunk <- load_sumstats(path_kunkle,     "Kunkle2019")
@@ -267,8 +261,6 @@ map_snps_batch <- function(snps_vec, batch_size = 50) {
     Sys.sleep(0.3)
   }
   dplyr::bind_rows(res_list)
-}
-
 qtls_raw <- map_snps_batch(sig_snps)
 
 if (!is.null(qtls_raw) && nrow(qtls_raw) > 0) {
@@ -283,8 +275,6 @@ if (!is.null(qtls_raw) && nrow(qtls_raw) > 0) {
     tissue = "Brain - Cortex", beta = 0.15, se = 0.04, pvalue = 1e-6,
     stringsAsFactors = FALSE
   )
-}
-
 fwrite(as.data.table(qtls), "qtls_brain_real.tsv", sep = "\t")
 genes_qtl <- unique(qtls$gene)
 message("    Brain eQTL genes identified: ", length(genes_qtl))
@@ -378,104 +368,116 @@ tryCatch({
 
   if (length(common_snps) >= 3) {
     gwas_sub  <- meta_signif[SNP %in% common_snps] %>%
-      as.data.frame() %>%
-      distinct(SNP, .keep_all = TRUE)
+# --- 10. coloc COLOCALIZATION ---
+message("\n>>> Step 8: coloc Pairwise GWAS-eQTL Colocalization...")
+# coloc tests each gene's eQTL signal against the AD GWAS signal pairwise.
+# PP4 = posterior probability of shared causal variant (target: >= 0.7)
 
-    genes_coloc <- unique(qtls$gene)
-    n_traits    <- 1 + length(genes_coloc)
-    beta_mat    <- matrix(0,  nrow = length(common_snps), ncol = n_traits,
-                          dimnames = list(common_snps,
-                                         c("AD_meta", genes_coloc)))
-    se_mat      <- matrix(1, nrow = length(common_snps), ncol = n_traits,
-                          dimnames = list(common_snps,
-                                         c("AD_meta", genes_coloc)))
+coloc_results <- list()
 
-    # Fill GWAS column with real meta-analysis stats
-    idx <- match(common_snps, gwas_sub$SNP)
-    beta_mat[, "AD_meta"] <- gwas_sub$BETA_meta[idx]
-    se_mat[,   "AD_meta"] <- gwas_sub$SE_meta[idx]
+tryCatch({
+  qtl_snp_col <- if ("rsid" %in% colnames(qtls)) "rsid" else colnames(qtls)[1]
+  genes_coloc <- unique(qtls$gene)
+  message("    Testing ", length(genes_coloc), " genes for colocalization...")
 
-    # Fill eQTL columns
-    for (g in genes_coloc) {
-      qtl_g   <- qtls[qtls$gene == g, ]
-      snp_idx <- match(common_snps, qtl_g[[qtl_snp_col]])
-      valid   <- !is.na(snp_idx)
-      if (sum(valid) > 0 && "beta" %in% colnames(qtl_g)) {
-        beta_mat[valid, g] <- qtl_g$beta[snp_idx[valid]]
-        se_mat[valid,   g] <- qtl_g$se[snp_idx[valid]]
-      }
+  for (g in genes_coloc) {
+    tryCatch({
+      qtl_g       <- qtls[qtls$gene == g, ]
+      common_snps <- intersect(meta_signif$SNP, qtl_g[[qtl_snp_col]])
+      if (length(common_snps) < 5) next
+
+      gwas_sub <- meta_signif[meta_signif$SNP %in% common_snps, ]
+      gwas_sub <- gwas_sub[!duplicated(gwas_sub$SNP), ]
+      qtl_sub  <- qtl_g[qtl_g[[qtl_snp_col]] %in% common_snps, ]
+      qtl_sub  <- qtl_sub[!duplicated(qtl_sub[[qtl_snp_col]]), ]
+
+      # Align order
+      snp_order  <- common_snps[common_snps %in% gwas_sub$SNP &
+                                 common_snps %in% qtl_sub[[qtl_snp_col]]]
+      if (length(snp_order) < 5) next
+
+      gwas_sub <- gwas_sub[match(snp_order, gwas_sub$SNP), ]
+      qtl_sub  <- qtl_sub[match(snp_order,  qtl_sub[[qtl_snp_col]]), ]
+
+      # Build coloc dataset lists
+      dataset1 <- list(
+        beta   = as.numeric(gwas_sub$BETA_meta),
+        varbeta = as.numeric(gwas_sub$SE_meta)^2,
+        snp    = snp_order,
+        type   = "cc",   # case-control
+        s      = 0.35    # approximate case fraction for AD studies
+      )
+      dataset2 <- list(
+        beta    = as.numeric(qtl_sub$beta),
+        varbeta = as.numeric(qtl_sub$se)^2,
+        snp     = snp_order,
+        type    = "quant"
+      )
+
+      res <- coloc.abf(dataset1, dataset2,
+                       p1 = 1e-4, p2 = 1e-4, p12 = 1e-5)
+
+      coloc_results[[g]] <- data.frame(
+        gene    = g,
+        nsnps   = res$summary["nsnps"],
+        PP0     = res$summary["PP.H0.abf"],
+        PP1     = res$summary["PP.H1.abf"],
+        PP2     = res$summary["PP.H2.abf"],
+        PP3     = res$summary["PP.H3.abf"],
+        PP4     = res$summary["PP.H4.abf"],  # Shared causal variant
+        stringsAsFactors = FALSE
+      )
+    }, error = function(e) NULL)
+  }
+
+  if (length(coloc_results) > 0) {
+    coloc_df <- dplyr::bind_rows(coloc_results) %>%
+      arrange(desc(PP4)) %>%
+      mutate(evidence = dplyr::case_when(
+        PP4 >= 0.9 ~ "Strong",
+        PP4 >= 0.7 ~ "Moderate",
+        PP4 >= 0.5 ~ "Suggestive",
+        TRUE       ~ "Weak"
+      ))
+
+    fwrite(as.data.table(coloc_df), "Coloc_Results_Real.tsv", sep = "\t")
+
+    hits <- coloc_df[coloc_df$PP4 >= pp4_threshold, ]
+    message("    Colocalized genes (PP4 >= ", pp4_threshold, "): ", nrow(hits))
+    if (nrow(hits) > 0) {
+      message("    Top hits: ", paste(hits$gene[1:min(5,nrow(hits))], collapse = ", "))
     }
 
-    # Remove sparse traits
-    keep <- colMeans(beta_mat == 0) < 0.9
-    beta_mat <- beta_mat[, keep, drop = FALSE]
-    se_mat   <- se_mat[,   keep, drop = FALSE]
+    # Plot: PP4 per gene
+    plot_df <- coloc_df %>%
+      head(25) %>%
+      mutate(gene = factor(gene, levels = rev(gene)))
 
-    hypr_res <- hyprcoloc(
-      effect.est    = beta_mat,
-      effect.se     = se_mat,
-      trait.names   = colnames(beta_mat),
-      snp.id        = rownames(beta_mat),
-      binary.traits = rep(0, ncol(beta_mat)),
-      prior.1       = 1e-4,
-      prior.c       = 0.02
-    )
+    p_coloc <- ggplot(plot_df,
+                      aes(x = gene, y = PP4, fill = evidence)) +
+      geom_bar(stat = "identity") +
+      geom_hline(yintercept = pp4_threshold, linetype = "dashed",
+                 color = "red", linewidth = 0.8) +
+      coord_flip() +
+      scale_fill_manual(values = c("Strong"     = "#2ecc71",
+                                   "Moderate"   = "#3498db",
+                                   "Suggestive" = "#f39c12",
+                                   "Weak"       = "#bdc3c7")) +
+      labs(title    = "Colocalization: AD GWAS vs GTEx Brain eQTLs",
+           subtitle = "coloc PP4 = Posterior probability of shared causal variant",
+           x        = "Gene",
+           y        = "PP4 (Shared Causal Variant)",
+           fill     = "Evidence") +
+      theme_bw(base_size = 12) +
+      theme(plot.title = element_text(face = "bold"))
 
-    if (!is.null(hypr_res)) {
-      hypr_df <- as.data.frame(hypr_res$results) %>%
-        mutate(evidence = case_when(
-          posterior_prob >= 0.9 ~ "Strong",
-          posterior_prob >= 0.7 ~ "Moderate",
-          posterior_prob >= 0.5 ~ "Suggestive",
-          TRUE                  ~ "Weak"
-        ))
-
-      fwrite(as.data.table(hypr_df), "HyPrColoc_Results_Real.tsv", sep = "\t")
-
-      hits <- hypr_df %>% filter(posterior_prob >= pp4_threshold)
-      message("    Colocalized genes (PP >= ", pp4_threshold, "): ", nrow(hits))
-      if (nrow(hits) > 0) message("    Top hits: ", paste(hits$traits, collapse = ", "))
-
-      # Plot
-      if (nrow(hypr_df) > 0) {
-        p_hypr <- ggplot(hypr_df,
-                         aes(x = reorder(traits, posterior_prob),
-                             y = posterior_prob, fill = evidence)) +
-          geom_bar(stat = "identity") +
-          geom_hline(yintercept = pp4_threshold, linetype = "dashed",
-                     color = "red", linewidth = 0.8) +
-          coord_flip() +
-          scale_fill_manual(values = c("Strong"     = "#2ecc71",
-                                       "Moderate"   = "#3498db",
-                                       "Suggestive" = "#f39c12",
-                                       "Weak"       = "#bdc3c7")) +
-          labs(title    = "HyPrColoc: AD GWAS vs GTEx Brain eQTLs",
-               subtitle = "Real summary statistics (Bellenguez 2022 + Kunkle 2019)",
-               x = "Trait Cluster", y = "Posterior Probability",
-               fill = "Evidence") +
-          theme_bw(base_size = 12) +
-          theme(plot.title = element_text(face = "bold"))
-
-        ggsave("HyPrColoc_Plot_Real.png", plot = p_hypr,
-               width = 10, height = 6, dpi = 300)
-        message("    HyPrColoc plot saved.")
-      }
-    }
-  } else {
-    message("    Not enough overlapping SNPs for colocalization.")
+    ggsave("Coloc_PP4_Plot_Real.png", plot = p_coloc,
+           width = 10, height = 7, dpi = 300)
+    message("    Colocalization plot saved.")
   }
 }, error = function(e) {
-  message("    HyPrColoc error: ", e$message)
+  message("    Colocalization error: ", e$message)
 })
 
-# --- 11. SUMMARY ---
-message("\n========================================")
-message("  REAL SUMMARY STATS PIPELINE COMPLETE")
-message("  Results saved to: ", work_dir)
-message("  Output files:")
-message("    - meta_analysis_significant.tsv.gz")
-message("    - Manhattan_MetaAnalysis.png")
-message("    - QQ_Plot_MetaAnalysis.png")
-message("    - Reactome / GO / gProfiler2 / DOSE results")
-message("    - HyPrColoc_Results_Real.tsv")
+message("    - Coloc_Results_Real.tsv")
 message("========================================\n")
