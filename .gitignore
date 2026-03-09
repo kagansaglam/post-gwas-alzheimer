@@ -1,0 +1,14 @@
+# R session files
+.Rhistory
+.RData
+.Rproj.user/
+*.Rproj
+
+# Results (generated at runtime — not tracked by default)
+results/*.csv
+results/*.png
+results/*.pdf
+
+# OS files
+.DS_Store
+Thumbs.db
