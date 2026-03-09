@@ -33,7 +33,8 @@ post-gwas-alzheimer/
 ├── Post_GWAS_Analysis_new.R              # Script 1: Hybrid (gene-based, with fallback)
 ├── Post_GWAS_Analysis_bigdata.R          # Script 2: Big Data (full study download)
 ├── Post_GWAS_Colocalization_HyPrColoc.R  # Script 3: Standalone colocalization
-├── Post_GWAS_SummaryStats_Pipeline.R     # Script 4: Real summary stats (full pipeline): Multi-trait colocalization
+├── Post_GWAS_SummaryStats_Pipeline.R     # Script 4: Real summary stats (full pipeline)
+├── Post_GWAS_DrugTarget_OpenTargets.R    # Script 5: Drug target prioritization: Multi-trait colocalization
 │
 ├── methods/                         # Per-tool methodology documentation
 │   ├── METHODS_GWAS_Catalog.md
@@ -72,6 +73,7 @@ post-gwas-alzheimer/
 | 4d | Curated library enrichment | `enrichR` |
 | 4e | Disease Ontology enrichment | `DOSE` |
 | 5 | Multi-trait colocalization (GWAS + brain eQTLs) | `HyPrColoc` |
+| 6 | Drug target prioritization & clinical evidence | `OpenTargets API` |
 
 ---
 
