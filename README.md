@@ -1,83 +1,100 @@
-# 🧬 post-gwas-alzheimer
+# 🧠 Post-GWAS Analysis Pipeline — Alzheimer's Disease
 
-A robust, modular Post-GWAS analysis pipeline focused on **Alzheimer's Disease (AD)**, designed to move from GWAS-significant SNPs to biologically interpretable gene sets and pathways.
+![R](https://img.shields.io/badge/Language-R-276DC3?style=flat&logo=r)
+![Status](https://img.shields.io/badge/Status-Active-brightgreen)
+![License](https://img.shields.io/badge/License-MIT-blue)
 
----
-
-## 📌 Overview
-
-Genome-Wide Association Studies (GWAS) identify statistical associations between genetic variants and traits, but the biological interpretation of these signals requires substantial downstream work. This pipeline bridges that gap for Alzheimer's Disease by:
-
-1. Fetching curated AD risk SNPs from the **NHGRI-EBI GWAS Catalog** (with a robust offline fallback)
-2. Mapping SNPs to candidate genes using **eQTL data** filtered for brain tissue
-3. Converting gene identifiers and running **multi-tool enrichment analysis**
-4. Producing pathway, ontology, and disease association results ready for interpretation
-
-The pipeline is built with a **hybrid server/backup architecture** — if any external API is unavailable, the analysis continues using curated literature-based data, making it reproducible in any environment.
+A robust, hybrid post-GWAS analysis pipeline for **Alzheimer's Disease (AD)**, designed to go beyond raw GWAS hits and extract biological meaning from associated variants. The pipeline maps lead SNPs to candidate genes via brain eQTLs, performs multi-database functional enrichment, and is built with fault-tolerance in mind (server fallback logic included).
 
 ---
 
-## 🗂️ Repository Structure
+## 📌 Table of Contents
+
+- [Overview](#overview)
+- [Pipeline Structure](#pipeline-structure)
+- [Methods Used](#methods-used)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Output Files](#output-files)
+- [Future Directions](#future-directions)
+- [References](#references)
+
+---
+
+## Overview
+
+Genome-wide association studies (GWAS) identify thousands of disease-associated variants, but translating these SNPs into biological mechanisms remains a major challenge. This pipeline implements a **post-GWAS functional annotation workflow** focused on Alzheimer's Disease, integrating:
+
+- GWAS Catalog API querying for AD-associated SNPs
+- SNP-to-gene mapping through brain-specific eQTLs (via Qtlizer)
+- Multi-database pathway and disease enrichment analysis
+
+The pipeline is designed to be **robust** — if external APIs are unavailable, it gracefully falls back to curated literature-based SNP and gene lists, ensuring analysis always completes.
+
+**Target trait:** Alzheimer's Disease  
+**Genome build:** GRCh38  
+**Significance threshold:** p ≤ 5×10⁻⁸  
+**LD threshold:** r² ≥ 0.8  
+**eQTL tissue filter:** Brain
+
+---
+
+## Pipeline Structure
 
 ```
 post-gwas-alzheimer/
-│
-├── README.md                        # This file
-├── Post_GWAS_Analysis_new.R         # Script 1: Hybrid (gene-based, with fallback)
-├── Post_GWAS_Analysis_bigdata.R     # Script 2: Big Data (full study download)
-│
-├── methods/                         # Per-tool methodology documentation
-│   ├── METHODS_GWAS_Catalog.md
-│   ├── METHODS_QTLizer.md
-│   ├── METHODS_BigData_Studies.md
-│   ├── METHODS_ReactomePA.md
-│   ├── METHODS_clusterProfiler_GO.md
-│   ├── METHODS_gProfiler2.md
-│   ├── METHODS_enrichR.md
-│   └── METHODS_DOSE.md
-│
-└── results/                         # Output directory (generated at runtime)
-    ├── lead_snps.csv
-    ├── qtls_filtered.csv
-    ├── gene_mapping.csv
-    ├── Reactome_Results.csv
-    ├── GO_Results.csv
-    ├── gProfiler2_Results.csv
-    ├── EnrichR_Results_TopDB.csv
-    └── DOSE_Results.csv
+├── README.md
+├── scripts/
+│   └── Post_GWAS_Analysis_new.R   # Main pipeline script
+├── results/                        # Output files (generated at runtime)
+│   ├── lead_snps.csv
+│   ├── qtls_filtered.csv
+│   ├── gene_mapping.csv
+│   ├── Reactome_Results.csv
+│   ├── GO_Results.csv
+│   ├── gProfiler2_Results.csv
+│   ├── EnrichR_Results_TopDB.csv
+│   └── DOSE_Results.csv
+└── docs/
+    └── methods.md                  # Detailed methods descriptions
 ```
 
 ---
 
-## ⚙️ Pipeline Steps
+## Methods Used
 
-| Step | Description | Tool |
-|------|-------------|------|
-| 1 | Fetch GWAS associations for AD risk genes | `gwasrapidd` + GWAS Catalog API |
-| 2 | Map SNPs to genes via brain eQTLs | `Qtlizer` |
-| 3 | Convert gene symbols to Entrez IDs | `org.Hs.eg.db` + `clusterProfiler::bitr` |
-| 4a | Reactome pathway enrichment | `ReactomePA` |
-| 4b | GO Biological Process enrichment | `clusterProfiler` |
-| 4c | Multi-database enrichment (GO, REAC, KEGG) | `gprofiler2` |
-| 4d | Curated library enrichment | `enrichR` |
-| 4e | Disease Ontology enrichment | `DOSE` |
+### 1. 🔍 GWAS Data Retrieval — `gwasrapidd`
+Queries the [NHGRI-EBI GWAS Catalog](https://www.ebi.ac.uk/gwas/) for associations linked to known AD risk genes. Falls back to a curated list of 46 well-validated AD SNPs from published literature if the API is unavailable.
+
+**Key genes queried:** APOE, BIN1, CLU, ABCA7, CR1, PICALM, TREM2, SORL1, PLCG2, ADAM10, and more.
+
+### 2. 🧬 SNP → Gene Mapping — `Qtlizer`
+Maps lead SNPs (and their LD proxies) to target genes using expression quantitative trait loci (eQTL) data, filtered to brain-relevant tissues. Batch processing is implemented to prevent API timeouts.
+
+### 3. 🔄 Gene ID Conversion — `clusterProfiler::bitr` + `org.Hs.eg.db`
+Converts gene symbols to Entrez IDs for downstream enrichment tools. Handles antisense and versioned gene names via regex cleaning.
+
+### 4. 📊 Pathway & Disease Enrichment
+Multiple complementary enrichment databases are queried in parallel:
+
+| Tool | Database | What it tests |
+|------|----------|---------------|
+| `ReactomePA` | Reactome | Curated biological pathways |
+| `clusterProfiler` | Gene Ontology (BP) | Biological process terms |
+| `gprofiler2` | GO + KEGG + Reactome | Cross-database enrichment |
+| `enrichR` | DisGeNET + GO 2023 | Disease-gene associations |
+| `DOSE` | Disease Ontology | DO-based disease enrichment |
+
+All results use **Benjamini-Hochberg** FDR correction at p < 0.05.
 
 ---
 
-## 🚀 Getting Started
-
-### Requirements
-
-- R ≥ 4.2.0
-- Bioconductor ≥ 3.16
-- Internet connection (optional — pipeline works offline via backup data)
-
-### Installation
+## Installation
 
 ```r
 # Install CRAN packages
 install.packages(c("tidyverse", "gwasrapidd", "httr", "jsonlite",
-                   "gprofiler2", "enrichR", "readr", "stringr", "ggplot2"))
+                   "gprofiler2", "enrichR", "ggplot2"))
 
 # Install Bioconductor packages
 if (!require("BiocManager")) install.packages("BiocManager")
@@ -85,78 +102,83 @@ BiocManager::install(c("Qtlizer", "clusterProfiler", "org.Hs.eg.db",
                        "enrichplot", "ReactomePA", "DOSE", "AnnotationDbi"))
 ```
 
-### Which Script to Use?
+**R version:** ≥ 4.2.0 recommended
 
-| | `Post_GWAS_Analysis_new.R` | `Post_GWAS_Analysis_bigdata.R` |
-|---|---|---|
-| **SNP source** | 19 curated AD risk genes | Full Bellenguez 2022 + Kunkle 2019 studies |
-| **Offline fallback** | ✅ Yes | ❌ No |
-| **Speed** | Fast | Slow |
-| **Coverage** | Targeted | Comprehensive |
-| **Use when** | Quick runs, offline, or testing | Stable connection, full analysis |
+---
 
-### Run
+## Usage
 
 ```r
-# Option 1: Hybrid (recommended for most use cases)
-source("Post_GWAS_Analysis_new.R")
+# Clone the repository
+# git clone https://github.com/YOUR_USERNAME/post-gwas-alzheimer.git
 
-# Option 2: Big Data (full study download — requires stable internet)
-source("Post_GWAS_Analysis_bigdata.R")
+# Set your working directory and run
+source("scripts/Post_GWAS_Analysis_new.R")
 ```
 
-Results will be saved to `~/Documents/run_results/` by default. Change the `work_dir` parameter at the top of the script to modify this.
-
-### Key Parameters
+To change the trait, tissue filter, or significance threshold, edit the parameters block at the top of the script:
 
 ```r
 trait          <- "Alzheimer_Hybrid_Analysis"
-pval_threshold <- 5e-8      # GWAS significance threshold
-ld_method      <- "r2"      # LD correlation method
-ld_corr        <- 0.8       # LD r² cutoff
-qtl_tissue     <- "Brain"   # Tissue filter for eQTL mapping
+pval_threshold <- 5e-8
+qtl_tissue     <- "Brain"   # Change to "all" for no tissue filter
+ld_corr        <- 0.8
 ```
 
 ---
 
-## 🧪 Target Genes
+## Output Files
 
-The pipeline queries associations for 19 well-established AD GWAS risk genes:
-
-`APOE`, `BIN1`, `CLU`, `ABCA7`, `CR1`, `PICALM`, `MS4A6A`, `CD33`, `MS4A4E`, `CD2AP`, `EPHA1`, `INPP5D`, `MEF2C`, `TREM2`, `SORL1`, `PLCG2`, `ADAM10`, `ACE`, `TOMM40`
-
----
-
-## 🔭 Future Directions
-
-This pipeline is designed as a foundation. The following analyses are planned for future development:
-
-### 1. 🔗 Colocalization Analysis (`coloc` / `HyPrColoc`)
-Formally test whether a GWAS signal and a brain eQTL share the same causal variant — providing much stronger evidence of gene causality than LD-proxy matching alone. Multi-trait colocalization with `HyPrColoc` will allow simultaneous testing across multiple AD-related phenotypes.
-
-### 2. ⚖️ Mendelian Randomization (`TwoSampleMR`)
-Use brain eQTL variants as instruments to test whether altered expression of candidate genes *causally* affects AD risk. This moves beyond correlation and enables directional inference about gene function in disease.
-
-### 3. 🧠 Cell-Type-Specific Enrichment (`MAGMA Celltyping`)
-Integrate GWAS summary statistics with single-cell RNA-seq signatures (e.g. Allen Brain Atlas, Human Cell Atlas) to identify which brain cell types — microglia, astrocytes, excitatory neurons — are most enriched for AD heritability.
-
-### 4. 💊 Drug Target Prioritization (OpenTargets / DGIdb)
-Map candidate genes to known drug targets and compounds using OpenTargets and DGIdb. Several AD GWAS genes (`TREM2`, `ADAM10`, `PLCG2`) are already actionable targets — this step will systematically flag druggable candidates and existing clinical compounds.
+| File | Description |
+|------|-------------|
+| `lead_snps.csv` | Final SNP list used for analysis |
+| `qtls_filtered.csv` | SNP-to-gene mapping results from Qtlizer |
+| `gene_mapping.csv` | Symbol → Entrez ID conversion table |
+| `Reactome_Results.csv` | Reactome pathway enrichment |
+| `GO_Results.csv` | GO Biological Process enrichment (simplified) |
+| `gProfiler2_Results.csv` | Multi-database enrichment (gProfiler2) |
+| `EnrichR_Results_TopDB.csv` | enrichR top database results |
+| `DOSE_Results.csv` | Disease Ontology enrichment |
 
 ---
 
-## 📚 Methods
+## Future Directions
 
-Detailed documentation for each tool used in this pipeline is available in the [`methods/`](methods/) directory.
+This pipeline is under active development. Planned extensions include:
+
+### 🔬 Stronger Causal Inference
+- **Colocalization analysis** (`coloc` / `HyPrColoc`) — formally test whether GWAS and eQTL signals share a causal variant, replacing LD-proxy filtering with probabilistic evidence
+- **Mendelian Randomization** (`TwoSampleMR`) — test whether changes in gene expression causally affect AD risk, not just correlate with it
+
+### 🧠 Brain Cell-Type Resolution
+- **MAGMA cell-type enrichment** — partition heritability across brain cell types (microglia, astrocytes, oligodendrocytes, neurons) using single-cell RNA-seq reference panels
+- **Multi-tissue eQTL comparison** — extend Qtlizer queries across all 13 GTEx brain subregions and compute tissue-specificity scores
+
+### 🎯 Druggability & Translation
+- **Drug target prioritization** — integrate candidate genes with OpenTargets and DGIdb to flag druggable targets and existing compounds
+- **PheWAS** — query all GWAS Catalog traits for top SNPs to identify pleiotropic effects and shared mechanisms with other diseases
+
+### 📦 Pipeline Infrastructure
+- **GWAS summary statistics input** — accept full sumstats (z-scores, betas, SE) to unlock finemapping tools like SuSiE and FINEMAP
+- **Automated HTML report** — Quarto/RMarkdown report bundling all plots, tables, and a methods summary
+- **Locus zoom plots** — per-locus visualization using `locuszoomr`
 
 ---
 
-## 📄 License
+## References
 
-MIT License — free to use, adapt, and distribute with attribution.
+- Buniello A. et al. (2019) The NHGRI-EBI GWAS Catalog. *Nucleic Acids Research*
+- Võsa U. et al. (2021) Large-scale cis- and trans-eQTL analyses identify thousands of genetic loci. *Nature Genetics*
+- Krassowski M. et al. — Qtlizer R package
+- Yu G. et al. (2012) clusterProfiler. *OMICS*
+- Fabregat A. et al. (2018) The Reactome Pathway Knowledgebase. *Nucleic Acids Research*
+- Lambert J.C. et al. (2013) Meta-analysis of 74,046 individuals identifies 11 new susceptibility loci for AD. *Nature Genetics*
+- Jansen I.E. et al. (2019) Genome-wide meta-analysis identifies new loci for AD. *Nature Genetics*
 
 ---
 
-## 🙋 Author
+## License
 
-Contributions and feedback welcome. Please open an issue or submit a pull request.
+MIT License — see [LICENSE](LICENSE) for details.
+
+> **Contact:** Open an issue or pull request for questions and contributions.
