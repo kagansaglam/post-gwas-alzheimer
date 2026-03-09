@@ -1,5 +1,0 @@
-9780743273565,The Great Gatsby,F. Scott Fitzgerald,5
-9780451524935,1984,George Orwell,3
-9780061120084,To Kill a Mockingbird,Harper Lee,0
-9780140283334,The Catcher in the Rye,J.D. Salinger,4
-9780316769488,The Hobbit,J.R.R. Tolkien,7

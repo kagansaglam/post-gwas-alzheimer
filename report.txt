@@ -1,9 +1,0 @@
---- Student Grade Report ---
-Alice: 90.00
-Bob: 71.67
-Charlie: 90.00
-David: 100.00
-Eve: 90.00
-Frank: 75.00
-Gia
-: 0.00
