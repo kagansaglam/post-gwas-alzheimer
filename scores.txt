@@ -1,0 +1,7 @@
+Alice,85,90,95
+Bob,70,65,80
+Charlie,92,88
+David,100,100,100,100
+Eve,bad_data,90
+Frank,75
+Gia

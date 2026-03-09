@@ -1,0 +1,14 @@
+# R
+.Rhistory
+.RData
+.Rproj.user
+*.Rproj
+
+# Results (large files - add manually if needed)
+results/*.csv
+results/*.pdf
+results/*.png
+
+# OS
+.DS_Store
+Thumbs.db
