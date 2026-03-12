@@ -143,6 +143,24 @@ The pipeline queries associations for 19 well-established AD GWAS risk genes:
 
 ---
 
+## 📊 Results
+
+Analysis performed on real GWAS summary statistics from **Bellenguez et al. 2022** (GCST90027158) and **Kunkle et al. 2019** (GCST007320), combined via inverse-variance weighted meta-analysis.
+
+### Reactome Pathway Enrichment
+![Reactome](results/figures/Reactome_DotPlot_Real.png)
+
+### GO Biological Process Enrichment
+![GO](results/figures/GO_DotPlot_Real.png)
+
+### Disease Ontology Enrichment
+![DOSE](results/figures/DOSE_DotPlot_Real.png)
+
+### Multi-Database Enrichment (gProfiler2)
+![gProfiler2](results/figures/gProfiler2_Plot_Real.png)
+
+---
+
 ## 🔭 Future Directions
 
 This pipeline is designed as a foundation. The following analyses are planned for future development:
