@@ -7,7 +7,7 @@
 ![Disease](https://img.shields.io/badge/disease-Alzheimer's-blueviolet?style=flat)
 ![Methods](https://img.shields.io/badge/methods-GWAS%20%7C%20eQTL%20%7C%20Colocalization-orange?style=flat)
 
-A robust, modular Post-GWAS analysis pipeline focused on **Alzheimer's Disease (AD)**, designed to move from GWAS-significant SNPs to biologically interpretable gene sets and pathways.
+A robust, modular Post-GWAS analysis pipeline focused on **Alzheimer's Disease (AD)**, designed to move from GWAS-significant SNPs to biologically interpretable gene sets, causal genes, and druggable targets.
 
 ---
 
@@ -16,9 +16,11 @@ A robust, modular Post-GWAS analysis pipeline focused on **Alzheimer's Disease (
 Genome-Wide Association Studies (GWAS) identify statistical associations between genetic variants and traits, but the biological interpretation of these signals requires substantial downstream work. This pipeline bridges that gap for Alzheimer's Disease by:
 
 1. Fetching curated AD risk SNPs from the **NHGRI-EBI GWAS Catalog** (with a robust offline fallback)
-2. Mapping SNPs to candidate genes using **eQTL data** filtered for brain tissue
-3. Converting gene identifiers and running **multi-tool enrichment analysis**
-4. Producing pathway, ontology, and disease association results ready for interpretation
+2. Mapping SNPs to candidate genes using **brain eQTL data** (Qtlizer)
+3. Running **multi-tool enrichment analysis** (Reactome, GO, gProfiler2, enrichR, DOSE)
+4. **Colocalization analysis** to identify shared causal variants between GWAS and eQTL signals
+5. **Drug target prioritization** using OpenTargets Platform clinical evidence
+6. **Mendelian Randomization** to test causal effects of gene expression on AD risk
 
 The pipeline is built with a **hybrid server/backup architecture** — if any external API is unavailable, the analysis continues using curated literature-based data, making it reproducible in any environment.
 
@@ -34,7 +36,8 @@ post-gwas-alzheimer/
 ├── Post_GWAS_Analysis_bigdata.R          # Script 2: Big Data (full study download)
 ├── Post_GWAS_Colocalization_HyPrColoc.R  # Script 3: Standalone colocalization
 ├── Post_GWAS_SummaryStats_Pipeline.R     # Script 4: Real summary stats (full pipeline)
-├── Post_GWAS_DrugTarget_OpenTargets.R    # Script 5: Drug target prioritization: Multi-trait colocalization
+├── Post_GWAS_DrugTarget_OpenTargets.R    # Script 5: Drug target prioritization
+├── Post_GWAS_MendelianRandomization.R    # Script 6: Mendelian Randomization
 │
 ├── methods/                         # Per-tool methodology documentation
 │   ├── METHODS_GWAS_Catalog.md
@@ -72,8 +75,9 @@ post-gwas-alzheimer/
 | 4c | Multi-database enrichment (GO, REAC, KEGG) | `gprofiler2` |
 | 4d | Curated library enrichment | `enrichR` |
 | 4e | Disease Ontology enrichment | `DOSE` |
-| 5 | Multi-trait colocalization (GWAS + brain eQTLs) | `HyPrColoc` |
+| 5 | Colocalization (GWAS + brain eQTLs) | `coloc` |
 | 6 | Drug target prioritization & clinical evidence | `OpenTargets API` |
+| 7 | Mendelian Randomization (IVW + MR-Egger + WM) | `TwoSampleMR` + `eQTLGen` |
 
 ---
 
@@ -100,13 +104,13 @@ BiocManager::install(c("Qtlizer", "clusterProfiler", "org.Hs.eg.db",
 
 ### Which Script to Use?
 
-| | `Post_GWAS_Analysis_new.R` | `Post_GWAS_Analysis_bigdata.R` | `Post_GWAS_Colocalization_HyPrColoc.R` |
-|---|---|---|---|
-| **Purpose** | Enrichment analysis | Enrichment (full studies) | Causal gene evidence |
-| **SNP source** | 19 curated AD genes | Bellenguez 2022 + Kunkle 2019 | Same as Script 1 |
-| **Offline fallback** | ✅ Yes | ❌ No | ✅ Yes |
-| **Speed** | Fast | Slow | Moderate |
-| **Use when** | First-pass analysis | Full coverage | After enrichment, to confirm causal genes |
+| | Script 1 | Script 2 | Script 4 | Script 5 | Script 6 |
+|---|---|---|---|---|---|
+| **Purpose** | Enrichment | Enrichment (full) | Real summary stats | Drug targets | Mendelian Randomization |
+| **SNP source** | 19 AD genes | Bellenguez + Kunkle | Bellenguez + Kunkle | Candidate genes | eQTLGen blood eQTLs |
+| **Offline fallback** | ✅ Yes | ❌ No | ❌ No | ❌ No | ❌ No |
+| **Speed** | Fast | Slow | Slow | Fast | Moderate |
+| **Use when** | First-pass | Full coverage | Full meta-analysis | Drug prioritization | Causal inference |
 
 ### Run
 
@@ -114,11 +118,15 @@ BiocManager::install(c("Qtlizer", "clusterProfiler", "org.Hs.eg.db",
 # Step 1: Enrichment analysis (recommended starting point)
 source("Post_GWAS_Analysis_new.R")
 
-# Step 1 (alternative): Full study download
-source("Post_GWAS_Analysis_bigdata.R")
+# Step 2: Real summary stats meta-analysis + colocalization
+source("Post_GWAS_SummaryStats_Pipeline.R")
 
-# Step 2: Colocalization — run after enrichment to confirm causal genes
-source("Post_GWAS_Colocalization_HyPrColoc.R")
+# Step 3: Drug target prioritization
+source("Post_GWAS_DrugTarget_OpenTargets.R")
+
+# Step 4: Mendelian Randomization (requires OpenGWAS token)
+Sys.setenv(OPENGWAS_JWT = "YOUR_TOKEN_HERE")
+source("Post_GWAS_MendelianRandomization.R")
 ```
 
 Results will be saved to `~/Documents/run_results/` by default. Change the `work_dir` parameter at the top of the script to modify this.
@@ -175,19 +183,13 @@ Analysis performed on real GWAS summary statistics from **Bellenguez et al. 2022
 
 ## 🔭 Future Directions
 
-This pipeline is designed as a foundation. The following analyses are planned for future development:
+The pipeline currently implements a comprehensive set of post-GWAS analyses. Potential extensions include:
 
-### 1. 🔗 Colocalization Analysis (`coloc` / `HyPrColoc`)
-Formally test whether a GWAS signal and a brain eQTL share the same causal variant — providing much stronger evidence of gene causality than LD-proxy matching alone. Multi-trait colocalization with `HyPrColoc` will allow simultaneous testing across multiple AD-related phenotypes.
-
-### 2. ⚖️ Mendelian Randomization (`TwoSampleMR`)
-Use brain eQTL variants as instruments to test whether altered expression of candidate genes *causally* affects AD risk. This moves beyond correlation and enables directional inference about gene function in disease.
-
-### 3. 🧠 Cell-Type-Specific Enrichment (`MAGMA Celltyping`)
+### 🧠 Cell-Type-Specific Enrichment (`MAGMA Celltyping`)
 Integrate GWAS summary statistics with single-cell RNA-seq signatures (e.g. Allen Brain Atlas, Human Cell Atlas) to identify which brain cell types — microglia, astrocytes, excitatory neurons — are most enriched for AD heritability.
 
-### 4. 💊 Drug Target Prioritization (OpenTargets / DGIdb)
-Map candidate genes to known drug targets and compounds using OpenTargets and DGIdb. Several AD GWAS genes (`TREM2`, `ADAM10`, `PLCG2`) are already actionable targets — this step will systematically flag druggable candidates and existing clinical compounds.
+### 🔁 Multi-trait Colocalization (`HyPrColoc`)
+Extend the current pairwise `coloc` analysis to simultaneous multi-trait colocalization across multiple AD-related phenotypes.
 
 ---
 
