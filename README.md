@@ -113,6 +113,22 @@ BiocManager::install(c("Qtlizer", "clusterProfiler", "org.Hs.eg.db",
 | **Speed** | Fast | Slow | Slow | Fast | Moderate |
 | **Use when** | First-pass | Full coverage | Full meta-analysis | Drug prioritization | Causal inference |
 
+### OpenGWAS Token (required for Mendelian Randomization)
+
+Script 6 uses the [OpenGWAS API](https://api.opengwas.io/) to fetch eQTL and GWAS data. A free token is required:
+
+1. Go to **https://api.opengwas.io/** and register (free, academic email recommended)
+2. Copy your JWT token
+3. Set it in R before running Script 6:
+
+```r
+Sys.setenv(OPENGWAS_JWT = "YOUR_TOKEN_HERE")
+```
+
+> ⚠️ Never share your token or commit it to GitHub.
+
+---
+
 ### Run
 
 ```r
