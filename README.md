@@ -6,7 +6,6 @@
 ![Status](https://img.shields.io/badge/status-active-brightgreen?style=flat)
 ![Disease](https://img.shields.io/badge/disease-Alzheimer's-blueviolet?style=flat)
 ![Methods](https://img.shields.io/badge/methods-GWAS%20%7C%20eQTL%20%7C%20Colocalization-orange?style=flat)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19002328.svg)](https://doi.org/10.5281/zenodo.19002328)
 
 A robust, modular Post-GWAS analysis pipeline focused on **Alzheimer's Disease (AD)**, designed to move from GWAS-significant SNPs to biologically interpretable gene sets and pathways.
 
@@ -159,6 +158,18 @@ Analysis performed on real GWAS summary statistics from **Bellenguez et al. 2022
 
 ### Multi-Database Enrichment (gProfiler2)
 ![gProfiler2](results/figures/gProfiler2_Plot_Real.png)
+
+### Drug Target Prioritization: Priority Ranking
+![Drug Target Priority](results/figures/DrugTarget_PriorityPlot.png)
+
+### Drug Target Prioritization: Clinical Phase Distribution
+![Drug Phase](results/figures/DrugTarget_PhasePlot.png)
+
+### Mendelian Randomization: IVW Forest Plot
+![MR Forest Plot](results/figures/MR_ForestPlot_IVW.png)
+
+### Mendelian Randomization: Method Comparison
+![MR Method Comparison](results/figures/MR_MethodComparison.png)
 
 ---
 
