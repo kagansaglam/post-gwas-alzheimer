@@ -6,6 +6,7 @@
 ![Status](https://img.shields.io/badge/status-active-brightgreen?style=flat)
 ![Disease](https://img.shields.io/badge/disease-Alzheimer's-blueviolet?style=flat)
 ![Methods](https://img.shields.io/badge/methods-GWAS%20%7C%20eQTL%20%7C%20Colocalization-orange?style=flat)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19002328.svg)](https://doi.org/10.5281/zenodo.19002328)
 
 A robust, modular Post-GWAS analysis pipeline focused on **Alzheimer's Disease (AD)**, designed to move from GWAS-significant SNPs to biologically interpretable gene sets and pathways.
 
