@@ -218,7 +218,7 @@ Detailed documentation for each tool used in this pipeline is available in the [
 
 ## 📄 License
 
-MIT License — free to use, adapt, and distribute with attribution.
+This project is licensed under the [MIT License](LICENSE) — free to use, adapt, and distribute with attribution.
 
 ---
 
